@@ -1025,59 +1025,97 @@ class TileHandler:
         return arr
 
 
+class PersistentWorker:
+    def __init__(self, self_copy):
+        """Initialize the worker process with its own copy of the self object."""
+        self.th = self_copy
+        self.datacube = self.th.datacube
+        self.datacube.config["dask_params"] = {"scheduler": "single-threaded"}
+
+    def process_tile(self, tile_idx):
+        """Process a single tile using the already initialized self and datacube."""
+        # Create the context for the specific tile
+        context_params = {
+            **{self.th.tile_dim: self.th.grid[tile_idx]},
+            "cache": self.th.cache,
+            "datacube": self.datacube,
+        }
+        context = self.th._create_context(**context_params)
+
+        # Evaluate the recipe
+        response = self.th._execute_workflow(context)
+
+        # Handle response and postprocess if necessary
+        if response:
+            if not self.th.merge_mode:
+                return response
+            else:
+                if self.th.tile_dim == sq.dimensions.TIME:
+                    response = self.th._postprocess_temporal(response)
+                elif self.th.tile_dim == sq.dimensions.SPACE:
+                    response = self.th._postprocess_spatial(response)
+
+                # Write result (in-memory or to disk)
+                if self.th.merge_mode == "merged":
+                    return response
+                else:
+                    out = []
+                    for layer in response.keys():
+                        out_dir = os.path.join(self.th.out_dir, layer)
+                        out_path = os.path.join(out_dir, f"{tile_idx}.tif")
+                        os.makedirs(out_dir, exist_ok=True)
+                        layer = response[layer].rio.write_crs(self.th.crs)
+                        layer.rio.to_raster(out_path)
+                        out.append(out_path)
+                    return out
+
+def worker_initializer(self_copy):
+    """Initializer for worker processes: creates a PersistentWorker instance."""
+    global worker_instance
+    worker_instance = PersistentWorker(self_copy)
+
+def worker_task(tile_idx):
+    """Function that each worker process will call for each task."""
+    global worker_instance
+    return worker_instance.process_tile(tile_idx)
+
+
 class TileHandlerParallel(TileHandler):
-    """Handler for executing a query in a tiled manner leveraging
-    multiprocessing. The heavyweight and repetitive initialisation via
-    preview() is carried out once and then tiles are processed in parallel.
-
-    Note that for STACCubes, parallel processing is per default already
-    enabled for data loading. Parallel processing via TileHandlerParallel
-    only makes sense if the workflow encapsulated in the recipe is
-    significantly more time-consuming than the actual data loading. It
-    must also be noted that the available RAM resources must be sufficient
-    to process, n_procs times the amount of data that arises in the case of
-    a simple TileHandler. This usually requires an adjustment of the
-    chunksizes, which in turn may increase the amount of redundant data
-    fetching processes (because the same data may be loaded for neighbouring
-    smaller tiles). The possible advantage of using the ParallelProcessor
-    depends on the specific recipe and is not trivial. In case of doubt,
-    the use of the TileHandler without multiprocessing is recommended.
-
-    Note that the multiprocessing environment isolates the main process
-    from the worker processes and resources need to be serializable to be
-    shared among worker processes. This implies that:
-    A) Custom functions (verb, operators, reducers) need to be defined in
-    a self-contained way, i.e. including imports such as `import semantique
-    as sq` at their beginning.
-    B) Reauth mechanisms relying on threaded processes won't work.
-    """
+    """tbd: Handler for executing a query in a tiled manner leveraging multiprocessing."""
 
     def __init__(self, *args, n_procs=os.cpu_count(), **kwargs):
-        # threaded reauth is not serializable -> disable
-        kwargs["reauth"] = False
+        # # tbd: threaded reauth is not serializable -> disable
+        # kwargs["reauth"] = False
         super().__init__(*args, **kwargs)
         self.n_procs = n_procs
         self.preview()
 
+
     def execute(self):
-        # get grid idxs
+        """Main function to distribute tasks to worker processes."""
+        # Get grid idxs
         grid_idxs = np.arange(len(self.grid))
-        # use manager to create a proxy for self that can be shared across processes
-        with Manager() as manager:
-            shared_self = manager.dict()
-            shared_self.update({"instance": self})
-            # run individual processes in parallelised manner
-            with Pool(processes=self.n_procs) as pool:
-                func = lambda idx: self._execute_tile(idx, shared_self)
-                tile_results = list(
-                    tqdm(
-                        pool.imap(func, grid_idxs),
-                        total=len(grid_idxs),
-                        desc="executing recipe in tiled manner",
-                    )
+
+        # Pool setup: create n_procs workers, each initialized with its own copy of self
+        with Pool(
+            processes=self.n_procs,
+            initializer=worker_initializer,
+            initargs=(self,)
+        ) as pool:
+            tile_results = list(
+                tqdm(
+                    pool.imap_unordered(worker_task, grid_idxs, chunksize=1),
+                    total=len(grid_idxs),
+                    smoothing=0.1,
                 )
-                tile_results = [x for x in tile_results if x is not None]
-        # merge results
+            )
+            pool.close()
+            pool.join()
+
+        # Filter None results
+        tile_results = [x for x in tile_results if x is not None]
+
+        # Merge results as needed
         if tile_results:
             if self.merge_mode:
                 if self.merge_mode == "merged":
@@ -1088,42 +1126,3 @@ class TileHandlerParallel(TileHandler):
                     self.merge_vrt()
             else:
                 self.tile_results = tile_results
-
-    def _execute_tile(self, tile_idx, shared_self):
-        # get shared instance
-        th = shared_self["instance"]
-        # set data loading to single processes
-        dc = th.datacube
-        dc.config["dask_params"] = {"scheduler": "single-threaded"}
-        # create context for specific tile
-        context_params = {
-            **{th.tile_dim: th.grid[tile_idx]},
-            "cache": th.cache,
-            "datacube": dc,
-        }
-        context = th._create_context(**context_params)
-        # evaluate the recipe
-        response = th._execute_workflow(context)
-        # handle response
-        if response:
-            if not th.merge_mode:
-                out = response
-            else:
-                # postprocess response
-                if th.tile_dim == sq.dimensions.TIME:
-                    response = th._postprocess_temporal(response)
-                elif th.tile_dim == sq.dimensions.SPACE:
-                    response = th._postprocess_spatial(response)
-                # write result (in-memory or to disk)
-                if th.merge_mode == "merged":
-                    out = response
-                else:
-                    out = []
-                    for layer in response.keys():
-                        out_dir = os.path.join(th.out_dir, layer)
-                        out_path = os.path.join(out_dir, f"{tile_idx}.tif")
-                        os.makedirs(out_dir, exist_ok=True)
-                        layer = response[layer].rio.write_crs(th.crs)
-                        layer.rio.to_raster(out_path)
-                        out.append(out_path)
-            return out
