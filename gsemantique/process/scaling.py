@@ -1,3 +1,4 @@
+import gc
 import geopandas as gpd
 import numpy as np
 import os
@@ -628,7 +629,10 @@ class TileHandler:
         being set in the datacube config or the parse_extent function.
         """
         run_workflow = True
+        retrieval_count = 0
         while run_workflow:
+            retrieval_count += 1
+            retrieval_error = False
             # check validity of datacube items (= Are items authenticated?)
             on_hold_count = 0
             while self.stop_flag:
@@ -660,18 +664,41 @@ class TileHandler:
                         response = None
                     else:
                         raise
+                except Exception:
+                    retrieval_error = True
             # check validity of datacube items again
             run_workflow = False
             if self.stop_flag:
-                now = time.strftime(
-                    "%Y-%m-%d %H:%M:%S",
-                    time.localtime(time.time())
-                )
-                print(f"{now}: Execution will be repeated to resign_error.")
-                print(f"{now}: Check the following tile")
-                print(f"{now}: -- location: {context['space']}".encode('ascii', 'replace').decode('ascii'))
-                print(f"{now}: -- time: {context['time']}".encode('ascii', 'replace').decode('ascii'))
+                err_msg = "Execution will be repeated due to resign error."
+            elif retrieval_error:
+                err_msg = "Execution will be repeated due to retrieval error."
+            else:
+                err_msg = None
+            if err_msg:
+                if retrieval_count == 1:
+                    now = time.strftime(
+                        "%Y-%m-%d %H:%M:%S",
+                        time.localtime(time.time())
+                    )
+                    print(
+                        f"{now}: {err_msg}",
+                        flush=True
+                    )
+                    print(f"{now}: Check the following tile")
+                    print(
+                        f"{now}: -- location: {context['space']}"
+                        .encode('ascii', 'replace')
+                        .decode('ascii'),
+                        flush=True
+                    )
+                    print(
+                        f"{now}: -- time: {context['time']}"
+                        .encode('ascii', 'replace')
+                        .decode('ascii'), 
+                        flush=True
+                    )
                 run_workflow = True
+                time.sleep(60)
         # return result
         return response
 
@@ -1029,8 +1056,8 @@ class PersistentWorker:
     def __init__(self, self_copy):
         """Initialize the worker process with its own copy of the self object."""
         self.th = self_copy
-        self.datacube = self.th.datacube
-        self.datacube.config["dask_params"] = {"scheduler": "single-threaded"}
+        self.th.datacube.config["dask_params"] = {"scheduler": "single-threaded"}
+        self.th.datacube.config["reauth_individual"] = True
 
     def process_tile(self, tile_idx):
         """Process a single tile using the already initialized self and datacube."""
@@ -1038,7 +1065,7 @@ class PersistentWorker:
         context_params = {
             **{self.th.tile_dim: self.th.grid[tile_idx]},
             "cache": self.th.cache,
-            "datacube": self.datacube,
+            "datacube": self.th.datacube,
         }
         context = self.th._create_context(**context_params)
 
@@ -1046,28 +1073,32 @@ class PersistentWorker:
         response = self.th._execute_workflow(context)
 
         # Handle response and postprocess if necessary
-        if response:
-            if not self.th.merge_mode:
-                return response
-            else:
-                if self.th.tile_dim == sq.dimensions.TIME:
-                    response = self.th._postprocess_temporal(response)
-                elif self.th.tile_dim == sq.dimensions.SPACE:
-                    response = self.th._postprocess_spatial(response)
-
-                # Write result (in-memory or to disk)
-                if self.th.merge_mode == "merged":
+        try:
+            if response:
+                if not self.th.merge_mode:
                     return response
                 else:
-                    out = []
-                    for layer in response.keys():
-                        out_dir = os.path.join(self.th.out_dir, layer)
-                        out_path = os.path.join(out_dir, f"{tile_idx}.tif")
-                        os.makedirs(out_dir, exist_ok=True)
-                        layer = response[layer].rio.write_crs(self.th.crs)
-                        layer.rio.to_raster(out_path)
-                        out.append(out_path)
-                    return out
+                    if self.th.tile_dim == sq.dimensions.TIME:
+                        response = self.th._postprocess_temporal(response)
+                    elif self.th.tile_dim == sq.dimensions.SPACE:
+                        response = self.th._postprocess_spatial(response)
+
+                    # Write result (in-memory or to disk)
+                    if self.th.merge_mode == "merged":
+                        return response
+                    else:
+                        out = []
+                        for layer in response.keys():
+                            out_dir = os.path.join(self.th.out_dir, layer)
+                            out_path = os.path.join(out_dir, f"{tile_idx}.tif")
+                            os.makedirs(out_dir, exist_ok=True)
+                            layer = response[layer].rio.write_crs(self.th.crs)
+                            layer.rio.to_raster(out_path)
+                            out.append(out_path)
+                        return out
+        finally:
+            del context, context_params
+            gc.collect()
 
 def worker_initializer(self_copy):
     """Initializer for worker processes: creates a PersistentWorker instance."""
@@ -1084,8 +1115,8 @@ class TileHandlerParallel(TileHandler):
     """tbd: Handler for executing a query in a tiled manner leveraging multiprocessing."""
 
     def __init__(self, *args, n_procs=os.cpu_count(), **kwargs):
-        # # tbd: threaded reauth is not serializable -> disable
-        # kwargs["reauth"] = False
+        # tbd: threaded reauth is not serializable -> disable
+        kwargs["reauth"] = False
         super().__init__(*args, **kwargs)
         self.n_procs = n_procs
         self.preview()
