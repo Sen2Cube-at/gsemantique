@@ -684,19 +684,6 @@ class TileHandler:
                         f"{now}: {err_msg}",
                         flush=True
                     )
-                    print(f"{now}: Check the following tile")
-                    print(
-                        f"{now}: -- location: {context['space']}"
-                        .encode('ascii', 'replace')
-                        .decode('ascii'),
-                        flush=True
-                    )
-                    print(
-                        f"{now}: -- time: {context['time']}"
-                        .encode('ascii', 'replace')
-                        .decode('ascii'), 
-                        flush=True
-                    )
                 run_workflow = True
                 time.sleep(60)
         # return result
