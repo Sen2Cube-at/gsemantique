@@ -38,7 +38,8 @@ class MergeMode(Enum):
 
 class TileHandler:
     """Handler for executing a query in a (spatially or temporally) tiled manner.
-    Currently only supports non-grouped outputs.
+    Note that it currently only supports non-grouped outputs, i.e. results that are
+    concatenated after a groupby operation was called.
 
     Parameters
     ----------
@@ -107,9 +108,9 @@ class TileHandler:
           <output path> - Only available for ["merged", "vrt_shapes", "vrt_tiles"].
                     Outputs will be written to the specified path and additionally be
                     accessible via `self.tile_results`.
-      caching : bool
-      reauth : bool
-      verbose : bool
+      caching : bool, tbd
+      reauth : bool, tbd
+      verbose : bool, tbd
       **config :
         Additional configuration parameters forwarded to QueryRecipe.execute.
         See :class:`QueryRecipe`, respectively :class:`QueryProcessor`.
@@ -1039,6 +1040,66 @@ class TileHandler:
         return arr
 
 
+class TileHandlerParallel(TileHandler):
+    """Handler for executing a query in exhaustive multiprocessing manner.
+    Contrary to the TileHandler, which only parallelises data loading, the
+    TileHandlerParallel class allows to parallelise the recipe execution, too.
+    The number of used    
+    
+    Parameters
+    ----------
+      args: dict
+        TileHandler arguments, see class defintion of TileHandler
+      n_cores : int, optional
+        The number of cores to be used for parallel processing.
+    """
+
+    def __init__(self, *args, n_procs=os.cpu_count(), **kwargs):
+        # reauth is not serializable -> disable
+        # reauth will be done individually prior to data loading
+        kwargs["reauth"] = False
+        super().__init__(*args, **kwargs)
+        self.n_procs = n_procs
+        self.preview()
+
+
+    def execute(self):
+        """Main function to distribute tasks to worker processes."""
+        # Get grid idxs
+        grid_idxs = np.arange(len(self.grid))
+
+        # Pool setup: create n_procs workers, each initialized with its own copy of self
+        with Pool(
+            processes=self.n_procs,
+            initializer=worker_initializer,
+            initargs=(self,)
+        ) as pool:
+            tile_results = list(
+                tqdm(
+                    pool.imap_unordered(worker_task, grid_idxs, chunksize=1),
+                    total=len(grid_idxs),
+                    smoothing=0.1,
+                )
+            )
+            pool.close()
+            pool.join()
+
+        # Filter None results
+        tile_results = [x for x in tile_results if x is not None]
+
+        # Merge results as needed
+        if tile_results:
+            if self.merge_mode:
+                if self.merge_mode == "merged":
+                    self.tile_results = tile_results
+                    self.merge_single()
+                elif "vrt" in self.merge_mode:
+                    self.tile_results = [x for sl in tile_results for x in sl]
+                    self.merge_vrt()
+            else:
+                self.tile_results = tile_results
+
+
 class PersistentWorker:
     def __init__(self, self_copy):
         """Initialize the worker process with its own copy of the self object."""
@@ -1096,51 +1157,3 @@ def worker_task(tile_idx):
     """Function that each worker process will call for each task."""
     global worker_instance
     return worker_instance.process_tile(tile_idx)
-
-
-class TileHandlerParallel(TileHandler):
-    """tbd: Handler for executing a query in a tiled manner leveraging multiprocessing."""
-
-    def __init__(self, *args, n_procs=os.cpu_count(), **kwargs):
-        # tbd: threaded reauth is not serializable -> disable
-        kwargs["reauth"] = False
-        super().__init__(*args, **kwargs)
-        self.n_procs = n_procs
-        self.preview()
-
-
-    def execute(self):
-        """Main function to distribute tasks to worker processes."""
-        # Get grid idxs
-        grid_idxs = np.arange(len(self.grid))
-
-        # Pool setup: create n_procs workers, each initialized with its own copy of self
-        with Pool(
-            processes=self.n_procs,
-            initializer=worker_initializer,
-            initargs=(self,)
-        ) as pool:
-            tile_results = list(
-                tqdm(
-                    pool.imap_unordered(worker_task, grid_idxs, chunksize=1),
-                    total=len(grid_idxs),
-                    smoothing=0.1,
-                )
-            )
-            pool.close()
-            pool.join()
-
-        # Filter None results
-        tile_results = [x for x in tile_results if x is not None]
-
-        # Merge results as needed
-        if tile_results:
-            if self.merge_mode:
-                if self.merge_mode == "merged":
-                    self.tile_results = tile_results
-                    self.merge_single()
-                elif "vrt" in self.merge_mode:
-                    self.tile_results = [x for sl in tile_results for x in sl]
-                    self.merge_vrt()
-            else:
-                self.tile_results = tile_results
