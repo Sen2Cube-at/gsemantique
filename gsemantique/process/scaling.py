@@ -15,7 +15,7 @@ import xarray as xr
 from copy import deepcopy
 from enum import Enum
 from itertools import product
-from multiprocess import Pool, Manager
+from multiprocess import Pool
 from shapely.geometry import box
 from rioxarray.merge import merge_arrays
 from tqdm import tqdm
