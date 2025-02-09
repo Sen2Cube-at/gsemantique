@@ -1,27 +1,19 @@
 # Contributing
 
-Thanks for taking the time to contribute to semantique! Contributions are welcome and greatly appreciated. The following is a set of guidelines for contributing. These are mostly guidelines, not rules. Use your best judgment, and feel free to propose changes to this document in a pull request.
+Thanks for taking the time to contribute to gsemantique. Contributions are welcome and greatly appreciated. The following is a set of guidelines for contributing. Contributions can come in different forms, as we will outline below. You don't even have to know Python to be able to contribute!
 
-Contributions can come in many different forms, as we will outline below. You don't even have to know Python to be able to contribute!
+## Creating issues
 
-## Creating issues and discussions
-
-Opening [issues](tbd) and [discussions](tbd) is also a form of contributing. They help us to improve the quality and user-friendliness of the package, as well as to build a community around the package.
+Opening [issues](https://github.com/fkroeber/gsemantique/issues) is also a form of contributing. They help us to improve the quality and user-friendliness of the package, as well as to build a community around the package.
 
 Use **Issues** if
 
-- You are using the package and something is not working as it should. In that case, use the [bug report template](tbd). Please first check if its really a bug in `gsemantique`, and if there are not already open issues reporting the same bug.
-- You have a request for a new feature. In that case, use the [feature request template](tbd). Please first check if the feature is not already present, and if there are not already open issues requesting the same feature. A feature request is meant to be very specific. For broader ideas on improving the package, use *Discusssions* instead.
-
-Use **Discussions** if
-
-- You have questions about the package and its functionalities. There might always be someone in the community who is able to help you. Use the [Q&A tag](tbd) for this purpose, and don't forget to mark an answer as *accepted* if it was helpful.
-- You have broader ideas about improving the package and want to share them, such that they can be discussed with other members of the community. Use the [Ideas tag](tbd) for that purpose. For very specific feature requests, use *Issues* instead.
-- You have used the package in a cool application and want to share that with other members of the community, such that they can learn from it or give feedback. Use the [Show and Tell tag](tbd) for this purpose.
+- You are using the package and something is not working as it should. In that case, use the [bug report template](https://github.com/fkroeber/gsemantique/blob/main/.github/ISSUE_TEMPLATE/bug_report.md). Please first check if its really a bug in `gsemantique`, and if there are not already open issues reporting the same bug.
+- You have a request for a new feature. In that case, use the [feature request template](https://github.com/fkroeber/gsemantique/blob/main/.github/ISSUE_TEMPLATE/feature_request.md). Please first check if the feature is not already present, and if there are not already open issues requesting the same feature.
 
 ## Solving issues
 
-If you know how to write Python you are welcome to contribute by solving open issues, for example by implementing new [features](tbd) or fixing [bugs](tbd). Especially those issues labelled with [help wanted](tbd) are desperately begging for contribution. Solving issues does not always involve writing code, you can also help by improving and extending [documentation](tbd).
+If you know how to write Python you are welcome to contribute by solving open issues, for example by implementing new [features](https://github.com/fkroeber/gsemantique/labels/enhancement) or fixing [bugs](https://github.com/fkroeber/gsemantique/labels/bug). Solving issues does not always involve writing code, you can also help by improving and extending [documentation](https://github.com/fkroeber/gsemantique/labels/documentation).
 
 In any case, the common code contributing workflow is:
 
@@ -46,7 +38,7 @@ It is recommended to create a new virtual environment containing all the depende
 
 #### 3. Writing & Formatting code
 
-When writing code we try to follow the [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html). Please format your code using the [Black formatter](https://github.com/psf/black).
+Please use [Flake8](https://flake8.pycqa.org/en/latest/) to check your code for style and syntax errors, and format your code by using [Black](https://github.com/psf/black). In case you are using VS Code, both packages are available as easy-to-use extensions, for further information find the VS code documentation for [linting](https://code.visualstudio.com/docs/python/linting) and [formatting](https://code.visualstudio.com/docs/python/formatting).
 
 #### 4. Commiting code to your local branch
 
@@ -89,6 +81,6 @@ git push origin my_new_branch
 
 #### 6. Creating a pull request
 
-Create a request to merge your changes into the main branch using the [Pull Request](tbd) functionality from GitHub. This should automatically provide you with the [pull request template](tbd). Add at least one of the package maintainer as reviewer of your pull request, and make sure the automatic checks done by GitHub pass without errors.
+Create a request to merge your changes into the main branch using the [Pull Request](https://github.com/fkroeber/gsemantique/pulls) functionality from GitHub. This should automatically provide you with the [pull request template](https://github.com/fkroeber/gsemantique/blob/main/.github/pull_request_template.md). Add at least one of the package maintainer as reviewer of your pull request, and make sure the automatic checks done by GitHub pass without errors.
 
 Happy coding!
