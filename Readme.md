@@ -11,7 +11,8 @@ This package builds on top of [semantique](https://zgis.github.io/semantique/#) 
 3. Scaling mechanisms that allow to evaluate recipes for large spatio-temporal extents up to the mesoscale, with internal automatic handling of the required chunking of the processing into smaller parts
 
 ## Installation
-At this moment the package can only be installed from source. This can be done in several ways:
+### A. Local setup 
+It is strongly recommended to create a virtual environment before installing the package. The package installation itself can be done in several ways:
 
 1) Using pip to install directly from GitHub:
 
@@ -26,6 +27,38 @@ git clone https://github.com/Sen2Cube-at/gsemantique.git
 cd gsemantique
 pip install .
 ```
+
+### B. Cloud-based setup
+Gsemantique can be deployed on any cloud infrastructure. The following steps describe how to do so within an AWS EC2 computing environment. To setup an AWS EC2 instance with gsemantique, it is necessary to...
+
+1) Launch an EC2 instance as described [here](https://docs.aws.amazon.com/codedeploy/latest/userguide/instances-ec2-create.html#instances-ec2-create-console)
+    * OS: choose an Ubuntu image
+    * instance type: choose an r-instance (high RAM per CPU ratio) with the desired amount of RAM/CPUs 
+    * memory configuration: depending on the size of results to be saved (minimum of 10GB recommended)
+
+2) Access the remote EC2 server
+    * download the private key certificate .pem & change permissions to 400 (on Windows shift file to WLS home directory first, then change permissions there)
+    * run the following CLI command to access the server: ssh -i "xxx.pem" ubuntu@server_adress.amazonaws.com
+
+3) Configure the server environment
+
+    ```
+    # 3.1 Update apt & install core tools
+    sudo apt update && sudo apt upgrade -y
+    sudo apt install -y git python3 python3-venv python3-pip python3-dev libpq-dev
+
+    # 3.2 Create virtual environment
+    mkdir -p venv
+    python3 -m venv venv/gsemantique
+    source venv/gsemantique/bin/activate
+
+    # 3.3 Install gsemantique
+    mkdir repos
+    cd repos
+    git clone https://github.com/Sen2Cube-at/gsemantique.git
+    cd gsemantique
+    pip install .
+    ```
 
 ## Usage
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/Sen2Cube-at/gsemantique/main)
