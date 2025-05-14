@@ -23,7 +23,7 @@ do
     echo "Year: $year, Cloud Threshold: $cloud_thresh" | tee -a "$log_file"
 
     # Call the Python script with these parameters and log the output
-    python composites.py \
+    /home/ubuntu/venv/gsemantique/bin/python3 composites.py \
         --t_start "2022-01-01" \
         --t_end "2023-01-01" \
         --cloud_thresh "$cloud_thresh" \
