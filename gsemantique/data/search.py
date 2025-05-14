@@ -57,9 +57,9 @@ class Finder:
                 logger.warn(
                     "AoI consists of multiple polygons. They will be dissolved."
                 )
-                self.aoi = aoi.to_crs(4326).dissolve().geometry[0]
+                self.aoi = aoi.to_crs(4326).dissolve().geometry.iloc[0]
             else:
-                self.aoi = aoi.to_crs(4326).geometry[0]
+                self.aoi = aoi.to_crs(4326).geometry.iloc[0]
         elif isinstance(aoi, shapely.geometry.polygon.Polygon):
             self.aoi = aoi
         else:
