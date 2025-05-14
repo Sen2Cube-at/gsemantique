@@ -4,7 +4,7 @@
 year=2022
 
 # Define the base name for the output directory
-output_dir_base="/home/ubuntu/projects/clouds/results/composites"
+output_dir_base="results/composites"
 mkdir -p "$output_dir_base"
 
 # Define the cloud thresholds to test

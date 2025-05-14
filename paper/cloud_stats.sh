@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # define the base name for the output directory
-output_dir_base="/home/ubuntu/projects/clouds/results/cloud_stats"
+output_dir_base="results/cloud_stats"
 mkdir -p "$output_dir_base"
 
 # define the cloud thresholds to test
